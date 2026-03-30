@@ -1,30 +1,44 @@
 #include "LED_Matrix.h"
-#include <Arduino.h>
+#include <driver/gpio.h>
+#include <string.h>
+#include <esp_log.h>
+
+static const char* TAG = "LED_Matrix";
 
 LED_Matrix::LED_Matrix() {
-    portOutRegister = (volatile uint32_t*)((GPIO.out_u.data) );
+    frameBuffer = nullptr;
 }
 
 void LED_Matrix::begin() {
     initPins();
     clear();
+    ESP_LOGI(TAG, "LED Matrix initialized");
 }
 
 void LED_Matrix::initPins() {
-    pinMode(HUB75_R1, OUTPUT);
-    pinMode(HUB75_G1, OUTPUT);
-    pinMode(HUB75_B1, OUTPUT);
-    pinMode(HUB75_R2, OUTPUT);
-    pinMode(HUB75_G2, OUTPUT);
-    pinMode(HUB75_B2, OUTPUT);
-    pinMode(HUB75_A, OUTPUT);
-    pinMode(HUB75_B, OUTPUT);
-    pinMode(HUB75_C, OUTPUT);
-    pinMode(HUB75_D, OUTPUT);
-    pinMode(HUB75_E, OUTPUT);
-    pinMode(HUB75_LAT, OUTPUT);
-    pinMode(HUB75_OE, OUTPUT);
-    pinMode(HUB75_CLK, OUTPUT);
+    frameBuffer = (uint8_t*)heap_caps_malloc(FRAME_BUFFER_SIZE, MALLOC_CAP_32BIT);
+    if (frameBuffer == nullptr) {
+        ESP_LOGE(TAG, "Failed to allocate frame buffer");
+        return;
+    }
+    
+    gpio_config_t io_conf = {
+        .pin_bit_mask = 0,
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE
+    };
+    
+    int pinList[] = {HUB75_R1, HUB75_G1, HUB75_B1, HUB75_R2, HUB75_G2, HUB75_B2,
+                     HUB75_A, HUB75_B, HUB75_C, HUB75_D, HUB75_E,
+                     HUB75_LAT, HUB75_OE, HUB75_CLK};
+    
+    for (int i = 0; i < 14; i++) {
+        io_conf.pin_bit_mask = (1ULL << pinList[i]);
+        gpio_config(&io_conf);
+        gpio_set_level((gpio_num_t)pinList[i], 0);
+    }
     
     pinMask_R1 = 1ULL << HUB75_R1;
     pinMask_G1 = 1ULL << HUB75_G1;
@@ -40,16 +54,19 @@ void LED_Matrix::initPins() {
     pinMask_LAT = 1ULL << HUB75_LAT;
     pinMask_OE = 1ULL << HUB75_OE;
     pinMask_CLK = 1ULL << HUB75_CLK;
+    pinMask_DATA = pinMask_R1 | pinMask_G1 | pinMask_B1 | pinMask_R2 | pinMask_G2 | pinMask_B2;
     
-    GPIO.out_u.val = 0;
+    portOutReg = (volatile uint32_t*)GPIO.out.val;
 }
 
 void LED_Matrix::clear() {
-    memset(frameBuffer, 0, sizeof(frameBuffer));
+    if (frameBuffer) {
+        memset(frameBuffer, 0, FRAME_BUFFER_SIZE);
+    }
 }
 
 void LED_Matrix::setPixel(uint16_t x, uint16_t y, uint8_t r, uint8_t g, uint8_t b) {
-    if (x >= MATRIX_WIDTH || y >= MATRIX_HEIGHT) return;
+    if (x >= MATRIX_WIDTH || y >= MATRIX_HEIGHT || !frameBuffer) return;
     
     uint32_t pixelIndex = (y * MATRIX_WIDTH + x) * 3;
     uint8_t bitPosition = pixelIndex & 0x7;
@@ -70,11 +87,11 @@ void LED_Matrix::setPixel(uint16_t x, uint16_t y, uint32_t color) {
 void LED_Matrix::fillScreen(uint8_t r, uint8_t g, uint8_t b) {
     clear();
     
-    if (r > 0 || g > 0 || b > 0) {
-        for (uint16_t y = 0; y < MATRIX_HEIGHT; y++) {
-            for (uint16_t x = 0; x < MATRIX_WIDTH; x++) {
-                setPixel(x, y, r, g, b);
-            }
+    if ((r == 0 && g == 0 && b == 0) || !frameBuffer) return;
+    
+    for (uint16_t y = 0; y < MATRIX_HEIGHT; y++) {
+        for (uint16_t x = 0; x < MATRIX_WIDTH; x++) {
+            setPixel(x, y, r, g, b);
         }
     }
 }
@@ -89,13 +106,15 @@ void LED_Matrix::fillScreen(uint32_t color) {
 void LED_Matrix::drawTestPattern() {
     clear();
     
+    uint16_t sectionWidth = MATRIX_WIDTH / 3;
+    
     for (uint16_t y = 0; y < MATRIX_HEIGHT; y++) {
         for (uint16_t x = 0; x < MATRIX_WIDTH; x++) {
             uint32_t color;
-            if (x < MATRIX_WIDTH / 3) {
-                color = 0xFF0000;
-            } else if (x < MATRIX_WIDTH * 2 / 3) {
+            if (x < sectionWidth) {
                 color = 0x00FF00;
+            } else if (x < sectionWidth * 2) {
+                color = 0xFF0000;
             } else {
                 color = 0x0000FF;
             }
@@ -113,20 +132,22 @@ void LED_Matrix::setRow(uint8_t row) {
     if (row & 0x08) rowMask |= pinMask_D;
     if (row & 0x10) rowMask |= pinMask_E;
     
-    GPIO.out_u.val = rowMask;
+    *portOutReg = (*portOutReg & ~pinMask_DATA) | rowMask;
 }
 
 void LED_Matrix::latchRow() {
-    GPIO.out_w1ts.val = pinMask_LAT;
-    GPIO.out_w1tc.val = pinMask_LAT;
+    gpio_set_level(HUB75_LAT, 1);
+    gpio_set_level(HUB75_LAT, 0);
 }
 
 void LED_Matrix::clockData() {
-    GPIO.out_w1ts.val = pinMask_CLK;
-    GPIO.out_w1tc.val = pinMask_CLK;
+    gpio_set_level(HUB75_CLK, 1);
+    gpio_set_level(HUB75_CLK, 0);
 }
 
 void LED_Matrix::shiftBitPlane(uint8_t bit) {
+    uint32_t rowBase = bit * MATRIX_WIDTH * 3;
+    
     for (uint16_t col = 0; col < MATRIX_WIDTH; col++) {
         uint32_t pixelData = 0;
         
@@ -134,8 +155,8 @@ void LED_Matrix::shiftBitPlane(uint8_t bit) {
             uint8_t actualRow = bit * 8 + rowGroup;
             if (actualRow >= MATRIX_HEIGHT) continue;
             
-            uint32_t pixelIndex = (actualRow * MATRIX_WIDTH + col) * 3;
-            uint8_t byteIndex = pixelIndex >> 3;
+            uint32_t pixelIndex = rowBase + (actualRow * MATRIX_WIDTH + col) * 3;
+            uint32_t byteIndex = pixelIndex >> 3;
             uint8_t bitPos = pixelIndex & 0x7;
             
             if (frameBuffer[byteIndex] & (1 << bitPos)) pixelData |= (1 << (rowGroup * 4));
@@ -151,27 +172,25 @@ void LED_Matrix::shiftBitPlane(uint8_t bit) {
         if (pixelData & 0x20) dataMask |= pinMask_G2;
         if (pixelData & 0x40) dataMask |= pinMask_B2;
         
-        GPIO.out_u.val = dataMask;
+        *portOutReg = (*portOutReg & ~pinMask_DATA) | dataMask;
         clockData();
     }
 }
 
 void LED_Matrix::outputRow(uint8_t row) {
     setRow(row);
-    shiftBitPlane(row / 8);
+    shiftBitPlane(row);
     latchRow();
 }
 
 void LED_Matrix::refresh() {
-    GPIO.out_w1ts.val = pinMask_OE;
+    gpio_set_level(HUB75_OE, 1);
     
-    for (uint8_t row = 0; row < 8; row++) {
+    for (uint8_t row = 0; row < 5; row++) {
         outputRow(row);
         
-        GPIO.out_w1tc.val = pinMask_OE;
-        delayMicroseconds(200);
-        GPIO.out_w1ts.val = pinMask_OE;
+        gpio_set_level(HUB75_OE, 0);
+        esp_rom_delay_us(200);
+        gpio_set_level(HUB75_OE, 1);
     }
-    
-    GPIO.out_w1ts.val = pinMask_OE;
 }

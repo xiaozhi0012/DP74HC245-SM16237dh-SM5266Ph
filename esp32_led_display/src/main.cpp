@@ -1,45 +1,28 @@
-#include <Arduino.h>
+#include <stdio.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <esp_log.h>
 #include "LED_Matrix.h"
 
-LED_Matrix matrix;
+static const char* TAG = "main";
 
-unsigned long lastUpdate = 0;
+LED_Matrix matrix;
 uint8_t animationFrame = 0;
 
-void setup() {
-    Serial.begin(115200);
-    delay(1000);
+void led_task(void* pvParameters) {
+    ESP_LOGI(TAG, "LED Task started");
     
-    Serial.println("Initializing LED Matrix...");
     matrix.begin();
-    Serial.println("LED Matrix initialized!");
-    
-    matrix.fillScreen(0, 0, 0);
-    delay(500);
+    vTaskDelay(pdMS_TO_TICKS(500));
     
     matrix.drawTestPattern();
-    delay(2000);
+    ESP_LOGI(TAG, "Test pattern displayed");
+    vTaskDelay(pdMS_TO_TICKS(2000));
     
-    Serial.println("Starting animation...");
-}
-
-void loop() {
-    unsigned long currentTime = millis();
-    
-    if (currentTime - lastUpdate > 100) {
-        lastUpdate = currentTime;
-        
+    while (1) {
         matrix.clear();
         
-        uint32_t colors[] = {
-            0xFF0000,
-            0x00FF00,
-            0x0000FF,
-            0xFFFF00,
-            0xFF00FF,
-            0x00FFFF
-        };
-        
+        uint32_t colors[] = {0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF, 0x00FFFF};
         uint32_t color = colors[animationFrame % 6];
         
         for (uint16_t y = 20; y < 140; y++) {
@@ -63,48 +46,15 @@ void loop() {
         }
         
         animationFrame++;
+        ESP_LOGD(TAG, "Frame: %d", animationFrame);
         
-        Serial.printf("Frame: %d\n", animationFrame);
-    }
-    
-    matrix.refresh();
-}
-
-void drawCheckerboard() {
-    matrix.clear();
-    
-    for (uint16_t y = 0; y < MATRIX_HEIGHT; y++) {
-        for (uint16_t x = 0; x < MATRIX_WIDTH; x++) {
-            bool isWhite = ((x / 20) + (y / 20)) % 2 == 0;
-            if (isWhite) {
-                matrix.setPixel(x, y, 255, 255, 255);
-            }
-        }
+        matrix.refresh();
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
-void drawRainbow() {
-    matrix.clear();
+void app_main() {
+    ESP_LOGI(TAG, "ESP32-S3 LED Matrix Starting...");
     
-    uint16_t sectionWidth = MATRIX_WIDTH / 6;
-    
-    for (uint16_t y = 0; y < MATRIX_HEIGHT; y++) {
-        for (uint16_t x = 0; x < MATRIX_WIDTH; x++) {
-            uint32_t color;
-            if (x < sectionWidth) {
-                color = 0xFF0000;
-            } else if (x < sectionWidth * 2) {
-                color = 0xFF7F00;
-            } else if (x < sectionWidth * 3) {
-                color = 0xFFFF00;
-            } else if (x < sectionWidth * 4) {
-                color = 0x00FF00;
-            } else if (x < sectionWidth * 5) {
-                color = 0x0000FF;
-            } else {
-                color = 0x8B00FF;
-            }
-            matrix.setPixel(x, y, color);
-        }
-    }
+    xTaskCreatePinnedToCore(led_task, "led_task", 4096, NULL, 1, NULL, 0);
 }

@@ -1,6 +1,6 @@
-# ESP32-S3 LED Matrix Display Driver
+# ESP32-S3 LED Matrix Display Driver (ESP-IDF)
 
-P2.5 LED 模块驱动，支持 320x160 分辨率，32扫描模式。
+P2.5 LED 模块驱动，支持 320x160 分辨率，32扫描模式。使用 ESP-IDF 框架。
 
 ## 硬件配置
 
@@ -33,9 +33,9 @@ P2.5 LED 模块驱动，支持 320x160 分辨率，32扫描模式。
 ## 开发环境
 
 - PlatformIO
-- Arduino Framework for ESP32
+- ESP-IDF Framework
 
-## 安装与编译
+## 编译烧录
 
 ```bash
 cd esp32_led_display
@@ -75,10 +75,10 @@ matrix.setPixel(x, y, 0xFF0000);
 // 全屏填充
 matrix.fillScreen(r, g, b);
 
-// 刷新显示（需要在 loop 中循环调用）
+// 刷新显示
 matrix.refresh();
 ```
 
 ## 驱动原理
 
-32扫描模式意味着将160行分成多个组，每组32行分4组。行地址通过 A/B/C/D/E 引脚选择，当前选择的行被激活显示数据。列数据通过 R1/G1/B1 (上半屏) 和 R2/G2/B2 (下半屏) 移入。
+32扫描模式将160行分成5组，每组32行。行地址通过 A/B/C/D/E 引脚选择，RGB数据通过 R1/G1/B1 (上半屏) 和 R2/G2/B2 (下半屏) 移入。

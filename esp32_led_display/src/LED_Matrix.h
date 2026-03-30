@@ -1,7 +1,8 @@
 #ifndef LED_MATRIX_H
 #define LED_MATRIX_H
 
-#include <Arduino.h>
+#include <driver/gpio.h>
+#include <stdint.h>
 
 constexpr int HUB75_R1 = 4;
 constexpr int HUB75_G1 = 5;
@@ -23,7 +24,7 @@ constexpr uint16_t MATRIX_HEIGHT = 160;
 constexpr uint8_t SCAN_MODE = 32;
 
 constexpr uint16_t COLOR_DEPTH = 8;
-constexpr uint16_t FRAME_BUFFER_SIZE = (MATRIX_WIDTH * MATRIX_HEIGHT * 3) / 8;
+constexpr uint32_t FRAME_BUFFER_SIZE = (MATRIX_WIDTH * MATRIX_HEIGHT * 3) / 8;
 
 class LED_Matrix {
 public:
@@ -38,7 +39,7 @@ public:
     void refresh();
     
 private:
-    uint8_t frameBuffer[MATRIX_WIDTH * MATRIX_HEIGHT * 3 / 8];
+    uint8_t* frameBuffer;
     
     void initPins();
     void latchRow();
@@ -47,11 +48,13 @@ private:
     void outputRow(uint8_t row);
     void shiftBitPlane(uint8_t bit);
     
-    volatile uint32_t* portOutRegister;
+    gpio_num_t pins[14];
     uint32_t pinMask_R1, pinMask_G1, pinMask_B1;
     uint32_t pinMask_R2, pinMask_G2, pinMask_B2;
     uint32_t pinMask_A, pinMask_B, pinMask_C, pinMask_D, pinMask_E;
     uint32_t pinMask_LAT, pinMask_OE, pinMask_CLK;
+    uint32_t pinMask_DATA;
+    volatile uint32_t* portOutReg;
 };
 
 #endif
