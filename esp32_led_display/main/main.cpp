@@ -53,7 +53,7 @@ void led_task(void* pvParameters) {
     }
 }
 
-void app_main() {
+extern "C" void app_main() {
     ESP_LOGI(TAG, "ESP32-S3 LED Matrix Starting...");
     
     xTaskCreatePinnedToCore(led_task, "led_task", 4096, NULL, 1, NULL, 0);
