@@ -2,6 +2,7 @@
 #include <driver/gpio.h>
 #include <string.h>
 #include <esp_log.h>
+#include <esp_heap_caps.h>
 
 static const char* TAG = "LED_Matrix";
 
@@ -30,14 +31,18 @@ void LED_Matrix::initPins() {
         .intr_type = GPIO_INTR_DISABLE
     };
     
-    int pinList[] = {HUB75_R1, HUB75_G1, HUB75_B1, HUB75_R2, HUB75_G2, HUB75_B2,
-                     HUB75_A, HUB75_B, HUB75_C, HUB75_D, HUB75_E,
-                     HUB75_LAT, HUB75_OE, HUB75_CLK};
+    gpio_num_t pinList[] = {
+        (gpio_num_t)HUB75_R1, (gpio_num_t)HUB75_G1, (gpio_num_t)HUB75_B1,
+        (gpio_num_t)HUB75_R2, (gpio_num_t)HUB75_G2, (gpio_num_t)HUB75_B2,
+        (gpio_num_t)HUB75_A, (gpio_num_t)HUB75_B, (gpio_num_t)HUB75_C,
+        (gpio_num_t)HUB75_D, (gpio_num_t)HUB75_E,
+        (gpio_num_t)HUB75_LAT, (gpio_num_t)HUB75_OE, (gpio_num_t)HUB75_CLK
+    };
     
     for (int i = 0; i < 14; i++) {
         io_conf.pin_bit_mask = (1ULL << pinList[i]);
         gpio_config(&io_conf);
-        gpio_set_level((gpio_num_t)pinList[i], 0);
+        gpio_set_level(pinList[i], 0);
     }
     
     pinMask_R1 = 1ULL << HUB75_R1;
@@ -55,8 +60,6 @@ void LED_Matrix::initPins() {
     pinMask_OE = 1ULL << HUB75_OE;
     pinMask_CLK = 1ULL << HUB75_CLK;
     pinMask_DATA = pinMask_R1 | pinMask_G1 | pinMask_B1 | pinMask_R2 | pinMask_G2 | pinMask_B2;
-    
-    portOutReg = (volatile uint32_t*)GPIO.out.val;
 }
 
 void LED_Matrix::clear() {
@@ -124,25 +127,21 @@ void LED_Matrix::drawTestPattern() {
 }
 
 void LED_Matrix::setRow(uint8_t row) {
-    uint32_t rowMask = 0;
-    
-    if (row & 0x01) rowMask |= pinMask_A;
-    if (row & 0x02) rowMask |= pinMask_B;
-    if (row & 0x04) rowMask |= pinMask_C;
-    if (row & 0x08) rowMask |= pinMask_D;
-    if (row & 0x10) rowMask |= pinMask_E;
-    
-    *portOutReg = (*portOutReg & ~pinMask_DATA) | rowMask;
+    gpio_set_level((gpio_num_t)HUB75_A, (row & 0x01) ? 1 : 0);
+    gpio_set_level((gpio_num_t)HUB75_B, (row & 0x02) ? 1 : 0);
+    gpio_set_level((gpio_num_t)HUB75_C, (row & 0x04) ? 1 : 0);
+    gpio_set_level((gpio_num_t)HUB75_D, (row & 0x08) ? 1 : 0);
+    gpio_set_level((gpio_num_t)HUB75_E, (row & 0x10) ? 1 : 0);
 }
 
 void LED_Matrix::latchRow() {
-    gpio_set_level(HUB75_LAT, 1);
-    gpio_set_level(HUB75_LAT, 0);
+    gpio_set_level((gpio_num_t)HUB75_LAT, 1);
+    gpio_set_level((gpio_num_t)HUB75_LAT, 0);
 }
 
 void LED_Matrix::clockData() {
-    gpio_set_level(HUB75_CLK, 1);
-    gpio_set_level(HUB75_CLK, 0);
+    gpio_set_level((gpio_num_t)HUB75_CLK, 1);
+    gpio_set_level((gpio_num_t)HUB75_CLK, 0);
 }
 
 void LED_Matrix::shiftBitPlane(uint8_t bit) {
@@ -172,7 +171,13 @@ void LED_Matrix::shiftBitPlane(uint8_t bit) {
         if (pixelData & 0x20) dataMask |= pinMask_G2;
         if (pixelData & 0x40) dataMask |= pinMask_B2;
         
-        *portOutReg = (*portOutReg & ~pinMask_DATA) | dataMask;
+        gpio_set_level((gpio_num_t)HUB75_R1, (dataMask & pinMask_R1) ? 1 : 0);
+        gpio_set_level((gpio_num_t)HUB75_G1, (dataMask & pinMask_G1) ? 1 : 0);
+        gpio_set_level((gpio_num_t)HUB75_B1, (dataMask & pinMask_B1) ? 1 : 0);
+        gpio_set_level((gpio_num_t)HUB75_R2, (dataMask & pinMask_R2) ? 1 : 0);
+        gpio_set_level((gpio_num_t)HUB75_G2, (dataMask & pinMask_G2) ? 1 : 0);
+        gpio_set_level((gpio_num_t)HUB75_B2, (dataMask & pinMask_B2) ? 1 : 0);
+        
         clockData();
     }
 }
@@ -184,13 +189,13 @@ void LED_Matrix::outputRow(uint8_t row) {
 }
 
 void LED_Matrix::refresh() {
-    gpio_set_level(HUB75_OE, 1);
+    gpio_set_level((gpio_num_t)HUB75_OE, 1);
     
     for (uint8_t row = 0; row < 5; row++) {
         outputRow(row);
         
-        gpio_set_level(HUB75_OE, 0);
+        gpio_set_level((gpio_num_t)HUB75_OE, 0);
         esp_rom_delay_us(200);
-        gpio_set_level(HUB75_OE, 1);
+        gpio_set_level((gpio_num_t)HUB75_OE, 1);
     }
 }
