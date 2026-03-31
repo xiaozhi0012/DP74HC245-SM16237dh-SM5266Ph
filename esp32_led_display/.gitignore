@@ -1,0 +1,44 @@
+# ESP-IDF
+build/
+sdkconfig
+sdkconfig.old
+*.pyc
+*.pyc.ok
+__pycache__/
+
+# Eclipse
+.cproject
+.project
+.settings/
+
+# VSCode
+.vscode/
+
+# IntelliJ
+*.iml
+
+# Git
+.git/
+
+# Python
+*.egg-info/
+dist/
+eggs/
+*.egg
+
+# PyLint
+.pylintrc
+.pylintrc.d
+
+# Coverage
+htmlcov/
+.coverage
+coverage.xml
+*.py,cover
+
+# Virtual environments
+venv/
+env/
+
+# ESP-IDF specific
+dependencies.lock

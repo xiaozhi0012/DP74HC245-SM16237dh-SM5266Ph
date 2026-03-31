@@ -1,6 +1,6 @@
-# ESP32-S3 LED Matrix Display Driver (ESP-IDF)
+# ESP32-S3 LED Matrix Display Driver
 
-P2.5 LED 模块驱动，支持 320x160 分辨率，32扫描模式。使用 ESP-IDF 框架。
+P2.5 LED 模块驱动，支持 320x160 分辨率，32扫描模式。
 
 ## 硬件配置
 
@@ -32,28 +32,29 @@ P2.5 LED 模块驱动，支持 320x160 分辨率，32扫描模式。使用 ESP-I
 
 ## 开发环境
 
-- PlatformIO
-- ESP-IDF Framework
+- VSCode + ESP-IDF 扩展
 
 ## 编译烧录
 
 ```bash
-cd esp32_led_display
-pio run
-pio run --target upload
-pio device monitor
+idf.py build
+idf.py flash
+idf.py monitor
 ```
 
 ## 项目结构
 
 ```
 esp32_led_display/
-├── platformio.ini
-├── src/
+├── CMakeLists.txt
+├── sdkconfig
+├── main/
+│   ├── CMakeLists.txt
 │   ├── main.cpp
 │   ├── LED_Matrix.h
 │   └── LED_Matrix.cpp
-└── README.md
+└── release/
+    └── 编译产物
 ```
 
 ## API 使用
